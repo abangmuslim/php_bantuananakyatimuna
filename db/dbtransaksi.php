@@ -1,112 +1,119 @@
 <?php
-$proses = isset($_GET['proses']) ? $_GET['proses'] : '';
 include "../koneksi.php";
 session_start();
+
+$proses = $_GET['proses'] ?? '';
 
 // Folder target foto transaksi
 $targetDir = "../views/transaksi/fototransaksi/";
 if (!is_dir($targetDir)) mkdir($targetDir, 0755, true);
 
-// Fungsi ambil nominal dari tabel bantuan
+// Ambil nominal dari tabel bantuan
 function getNominal($koneksi, $id_bantuan) {
-    $q = mysqli_query($koneksi, "SELECT nominal FROM bantuan WHERE id_bantuan='$id_bantuan'");
+    $id_bantuan = intval($id_bantuan);
+    $q = mysqli_query($koneksi, "SELECT nominal FROM bantuan WHERE id_bantuan='$id_bantuan' LIMIT 1");
     $r = mysqli_fetch_assoc($q);
-    return $r ? $r['nominal'] : 0;
+    return $r ? intval($r['nominal']) : 0;
 }
 
-// Tambah transaksi
+// Upload foto
+function uploadFoto($fileInput, $targetDir) {
+    if (empty($fileInput['name'])) return '';
+
+    $file_name = basename($fileInput['name']);
+    $file_tmp  = $fileInput['tmp_name'];
+    $file_size = $fileInput['size'];
+    $file_ext  = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+    $allowed_ext = ['jpg','jpeg','png'];
+
+    if (!in_array($file_ext, $allowed_ext)) return '';
+    if ($file_size > 2*1024*1024) return '';
+
+    $new_name = date('YmdHis') . '_' . preg_replace("/[^a-zA-Z0-9_\.-]/", "_", $file_name);
+    if (move_uploaded_file($file_tmp, $targetDir . $new_name)) return $new_name;
+
+    return '';
+}
+
+// ======================= TAMBAH =======================
 if ($proses == 'tambah') {
 
-    $id_penerima = intval($_POST['id_penerima']);
-    $id_bantuan  = intval($_POST['id_bantuan']);
-    $id_admin    = intval($_POST['id_admin']);
-    $tanggal_pembayaran = htmlspecialchars($_POST['tanggal_pembayaran']);
+    $id_penerima = intval($_POST['id_penerima'] ?? 0);
+    $id_bantuan  = intval($_POST['id_bantuan'] ?? 0);
+    $id_admin    = intval($_POST['id_admin'] ?? 0);
+    $tanggal_pembayaran = $_POST['tanggal_pembayaran'] ?? '';
 
-    // Ambil nominal dari bantuan
-    $nominal = getNominal($koneksi, $id_bantuan);
-
-    // Upload foto bukti
-    $foto = '';
-    if (!empty($_FILES['foto']['name'])) {
-        $file_name = basename($_FILES['foto']['name']);
-        $file_tmp  = $_FILES['foto']['tmp_name'];
-        $file_size = $_FILES['foto']['size'];
-        $file_ext  = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
-        $allowed_ext = ['jpg','jpeg','png'];
-
-        if (in_array($file_ext, $allowed_ext) && $file_size <= 2*1024*1024) {
-            $foto = date('YmdHis') . '_' . $file_name;
-            move_uploaded_file($file_tmp, $targetDir . $foto);
-        }
+    if (!$id_penerima || !$id_bantuan || !$id_admin || !$tanggal_pembayaran) {
+        die("Error: Data tidak lengkap!");
     }
 
-    mysqli_query($koneksi, "INSERT INTO transaksi SET 
-        id_penerima='$id_penerima',
-        id_bantuan='$id_bantuan',
-        id_admin='$id_admin',
-        tanggal_pembayaran='$tanggal_pembayaran',
-        nominal='$nominal',
-        foto='$foto'
-    ");
-
-} elseif ($proses == 'edit') {
-
-    $id_transaksi = intval($_POST['id_transaksi']);
-    $id_penerima  = intval($_POST['id_penerima']);
-    $id_bantuan   = intval($_POST['id_bantuan']);
-    $id_admin     = intval($_POST['id_admin']);
-    $tanggal_pembayaran = htmlspecialchars($_POST['tanggal_pembayaran']);
-
-    // Ambil nominal dari bantuan
     $nominal = getNominal($koneksi, $id_bantuan);
+    $foto = uploadFoto($_FILES['foto'] ?? [], $targetDir);
 
-    // Ambil data lama
-    $sqlShow = mysqli_query($koneksi, "SELECT foto FROM transaksi WHERE id_transaksi='$id_transaksi'");
-    $result  = mysqli_fetch_assoc($sqlShow);
-    $foto    = $result['foto']; // default foto lama
+    $stmt = mysqli_prepare($koneksi, "INSERT INTO transaksi (id_penerima, id_bantuan, id_admin, tanggal_pembayaran, nominal, foto) VALUES (?, ?, ?, ?, ?, ?)");
+    mysqli_stmt_bind_param($stmt, "iiisis", $id_penerima, $id_bantuan, $id_admin, $tanggal_pembayaran, $nominal, $foto);
+    mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
 
-    if (!empty($_FILES['foto']['name'])) {
-        $file_name = basename($_FILES['foto']['name']);
-        $file_tmp  = $_FILES['foto']['tmp_name'];
-        $file_size = $_FILES['foto']['size'];
-        $file_ext  = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
-        $allowed_ext = ['jpg','jpeg','png'];
+}
 
-        if (in_array($file_ext, $allowed_ext) && $file_size <= 2*1024*1024) {
-            // hapus foto lama jika ada
-            if (!empty($foto) && file_exists($targetDir . $foto)) unlink($targetDir . $foto);
+// ======================= EDIT =======================
+elseif ($proses == 'edit') {
 
-            $foto = date('YmdHis') . '_' . $file_name;
-            move_uploaded_file($file_tmp, $targetDir . $foto);
-        }
+    $id_transaksi = intval($_POST['id_transaksi'] ?? 0);
+    $id_penerima  = intval($_POST['id_penerima'] ?? 0);
+    $id_bantuan   = intval($_POST['id_bantuan'] ?? 0);
+    $id_admin     = intval($_POST['id_admin'] ?? 0);
+    $tanggal_pembayaran = $_POST['tanggal_pembayaran'] ?? '';
+
+    if (!$id_transaksi || !$id_penerima || !$id_bantuan || !$id_admin || !$tanggal_pembayaran) {
+        die("Error: Data tidak lengkap!");
     }
 
-    mysqli_query($koneksi, "UPDATE transaksi SET
-        id_penerima='$id_penerima',
-        id_bantuan='$id_bantuan',
-        id_admin='$id_admin',
-        tanggal_pembayaran='$tanggal_pembayaran',
-        nominal='$nominal',
-        foto='$foto'
-        WHERE id_transaksi='$id_transaksi'
-    ");
+    $nominal = getNominal($koneksi, $id_bantuan);
 
-} elseif ($proses == 'hapus') {
+    // Ambil foto lama
+    $sqlShow = mysqli_query($koneksi, "SELECT foto FROM transaksi WHERE id_transaksi='$id_transaksi' LIMIT 1");
+    $result = mysqli_fetch_assoc($sqlShow);
+    $foto = $result['foto'] ?? '';
 
-    $id_transaksi = intval($_GET['id_transaksi']);
+    // Upload foto baru
+    $newFoto = uploadFoto($_FILES['foto'] ?? [], $targetDir);
+    if ($newFoto) {
+        if (!empty($foto) && file_exists($targetDir . $foto)) unlink($targetDir . $foto);
+        $foto = $newFoto;
+    }
 
-    // hapus foto lama
-    $sqlShow = mysqli_query($koneksi, "SELECT foto FROM transaksi WHERE id_transaksi='$id_transaksi'");
-    $result  = mysqli_fetch_assoc($sqlShow);
+    $stmt = mysqli_prepare($koneksi, "UPDATE transaksi SET id_penerima=?, id_bantuan=?, id_admin=?, tanggal_pembayaran=?, nominal=?, foto=? WHERE id_transaksi=?");
+    mysqli_stmt_bind_param($stmt, "iiisisi", $id_penerima, $id_bantuan, $id_admin, $tanggal_pembayaran, $nominal, $foto, $id_transaksi);
+    mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
 
+}
+
+// ======================= HAPUS =======================
+elseif ($proses == 'hapus') {
+
+    $id_transaksi = intval($_GET['id_transaksi'] ?? 0);
+    if (!$id_transaksi) die("Error: ID tidak ditemukan!");
+
+    // Hapus foto lama
+    $sqlShow = mysqli_query($koneksi, "SELECT foto FROM transaksi WHERE id_transaksi='$id_transaksi' LIMIT 1");
+    $result = mysqli_fetch_assoc($sqlShow);
     if (!empty($result['foto']) && file_exists($targetDir . $result['foto'])) {
         unlink($targetDir . $result['foto']);
     }
 
-    mysqli_query($koneksi, "DELETE FROM transaksi WHERE id_transaksi='$id_transaksi'");
+    $stmt = mysqli_prepare($koneksi, "DELETE FROM transaksi WHERE id_transaksi=?");
+    mysqli_stmt_bind_param($stmt, "i", $id_transaksi);
+    mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
+
+} else {
+    die("Proses tidak dikenali!");
 }
 
-// redirect ke halaman daftar transaksi
-header("location:../index.php?halaman=daftartransaksi");
+// Redirect ke daftar transaksi
+header("Location: ../index.php?halaman=daftartransaksi");
 exit();
 ?>

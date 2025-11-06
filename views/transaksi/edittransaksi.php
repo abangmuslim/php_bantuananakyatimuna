@@ -1,137 +1,197 @@
 <?php
-// views/transaksi/edittransaksi.php
-// Asumsi: $koneksi tersedia dari layout/index
-$id = intval($_GET['id_transaksi']);
-$sql = mysqli_query($koneksi, "SELECT * FROM transaksi WHERE id_transaksi='$id'");
-$data = mysqli_fetch_assoc($sql);
+// Ambil ID transaksi
+$id_transaksi = isset($_GET['id_transaksi']) ? intval($_GET['id_transaksi']) : 0;
+
+// Ambil data transaksi
+$qTrans = mysqli_query($koneksi, "
+  SELECT t.*, p.nama_penerima, p.kelas, b.nama_bantuan, b.nominal AS nominal_bantuan, a.nama_admin
+  FROM transaksi t
+  LEFT JOIN penerima p ON t.id_penerima = p.id_penerima
+  LEFT JOIN bantuan b ON t.id_bantuan = b.id_bantuan
+  LEFT JOIN admin a ON t.id_admin = a.id_admin
+  WHERE t.id_transaksi = '$id_transaksi'
+");
+$trans = mysqli_fetch_assoc($qTrans);
 
 // Ambil data dropdown
-$bantuan = mysqli_query($koneksi, "SELECT id_bantuan, nama_bantuan, nominal FROM bantuan ORDER BY nama_bantuan ASC");
-$penerima = mysqli_query($koneksi, "SELECT id_penerima, nama_penerima FROM penerima ORDER BY nama_penerima ASC");
 $admin = mysqli_query($koneksi, "SELECT id_admin, nama_admin FROM admin ORDER BY nama_admin ASC");
+$bantuan = mysqli_query($koneksi, "SELECT id_bantuan, nama_bantuan, nominal FROM bantuan ORDER BY nama_bantuan ASC");
 ?>
 
 <section class="content">
+  <div class="container-fluid">
+    <div class="card card-primary shadow-sm">
+      <div class="card-header bg-primary text-white">
+        <h3 class="card-title">Edit Transaksi Bantuan</h3>
+      </div>
 
-  <div class="card card-info">
-    <div class="card-header bg-gradient-info">
-      <h5 class="card-title text-white"><i class="fas fa-edit"></i> Edit Transaksi</h5>
-    </div>
+      <form action="db/dbtransaksi.php?proses=edit" method="POST" enctype="multipart/form-data" id="formTransaksi">
+        <input type="hidden" name="id_transaksi" value="<?= $id_transaksi; ?>">
 
-    <form action="db/dbtransaksi.php?proses=edit" method="POST" enctype="multipart/form-data">
-      <input type="hidden" name="id_transaksi" value="<?= intval($data['id_transaksi']); ?>">
-      <input type="hidden" name="foto_lama" value="<?= htmlspecialchars($data['foto']); ?>">
+        <div class="card-body">
 
-      <div class="card-body">
-        <div class="row">
-
-          <!-- Kolom kiri -->
-          <div class="col-md-6">
-            <div class="form-group">
-              <label>Nama Penerima <small class="text-danger">*</small></label>
-              <select name="id_penerima" class="form-control" required>
-                <option value="">-- Pilih Penerima --</option>
-                <?php while($row = mysqli_fetch_assoc($penerima)): ?>
-                  <option value="<?= intval($row['id_penerima']); ?>" <?= $row['id_penerima']==$data['id_penerima'] ? 'selected' : ''; ?>>
-                    <?= htmlspecialchars($row['nama_penerima']); ?>
-                  </option>
+          <!-- === PILIH PENERIMA === -->
+          <div class="form-group">
+            <label><strong>Pilih Penerima</strong> <small class="text-danger">*</small></label>
+            <table id="tablePenerima" class="table table-bordered table-striped text-sm">
+              <thead class="bg-light">
+                <tr>
+                  <th>No</th>
+                  <th>Nama</th>
+                  <th>Kelas</th>
+                  <th>Pendapatan Orang Tua</th>
+                  <th class="text-center">Pilih</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php
+                $no = 1;
+                $q = mysqli_query($koneksi, "SELECT id_penerima, nama_penerima, kelas, pendapatan_orang_tua FROM penerima ORDER BY nama_penerima ASC LIMIT 500");
+                while ($row = mysqli_fetch_assoc($q)):
+                  $checked = ($row['id_penerima'] == $trans['id_penerima']) ? 'checked' : '';
+                ?>
+                <tr>
+                  <td><?= $no++; ?></td>
+                  <td><?= htmlspecialchars($row['nama_penerima']); ?></td>
+                  <td><?= htmlspecialchars($row['kelas']); ?></td>
+                  <td><?= number_format($row['pendapatan_orang_tua'], 0, ',', '.'); ?></td>
+                  <td class="text-center">
+                    <input type="radio" name="id_penerima" value="<?= intval($row['id_penerima']); ?>" <?= $checked; ?> required>
+                  </td>
+                </tr>
                 <?php endwhile; ?>
-              </select>
+              </tbody>
+            </table>
+          </div>
+
+          <hr>
+
+          <!-- === PILIH BANTUAN & ADMIN === -->
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group">
+                <label><strong>Nama Bantuan</strong> <small class="text-danger">*</small></label>
+                <select class="form-control" name="id_bantuan" id="id_bantuan" required>
+                  <option value="">-- Pilih Bantuan --</option>
+                  <?php while ($row = mysqli_fetch_assoc($bantuan)): 
+                    $selected = ($row['id_bantuan'] == $trans['id_bantuan']) ? 'selected' : '';
+                  ?>
+                    <option value="<?= intval($row['id_bantuan']); ?>" data-nominal="<?= $row['nominal']; ?>" <?= $selected; ?>>
+                      <?= htmlspecialchars($row['nama_bantuan']); ?>
+                    </option>
+                  <?php endwhile; ?>
+                </select>
+              </div>
             </div>
 
-            <div class="form-group">
-              <label>Nama Bantuan <small class="text-danger">*</small></label>
-              <select name="id_bantuan" id="id_bantuan" class="form-control" required>
-                <option value="">-- Pilih Bantuan --</option>
-                <?php 
-                mysqli_data_seek($bantuan, 0); // reset pointer
-                while($row = mysqli_fetch_assoc($bantuan)): ?>
-                  <option value="<?= intval($row['id_bantuan']); ?>" data-nominal="<?= $row['nominal']; ?>" <?= $row['id_bantuan']==$data['id_bantuan'] ? 'selected' : ''; ?>>
-                    <?= htmlspecialchars($row['nama_bantuan']); ?>
-                  </option>
-                <?php endwhile; ?>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label>Nama Admin <small class="text-danger">*</small></label>
-              <select name="id_admin" class="form-control" required>
-                <option value="">-- Pilih Admin --</option>
-                <?php while($row = mysqli_fetch_assoc($admin)): ?>
-                  <option value="<?= intval($row['id_admin']); ?>" <?= $row['id_admin']==$data['id_admin'] ? 'selected' : ''; ?>>
-                    <?= htmlspecialchars($row['nama_admin']); ?>
-                  </option>
-                <?php endwhile; ?>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label>Tanggal Pembayaran <small class="text-danger">*</small></label>
-              <input type="date" name="tanggal_pembayaran" class="form-control" value="<?= htmlspecialchars($data['tanggal_pembayaran']); ?>" required>
+            <div class="col-md-6">
+              <div class="form-group">
+                <label><strong>Tanggal Pembayaran</strong> <small class="text-danger">*</small></label>
+                <input type="date" class="form-control" name="tanggal_pembayaran"
+                       value="<?= htmlspecialchars($trans['tanggal_pembayaran']); ?>" required>
+              </div>
             </div>
           </div>
 
-          <!-- Kolom kanan -->
-          <div class="col-md-6">
-            <div class="form-group">
-              <label>Nominal</label>
-              <input type="text" id="nominal" class="form-control" value="<?= number_format($data['nominal'],0,',','.'); ?>" readonly>
-              <input type="hidden" name="nominal" id="nominal_hidden" value="<?= $data['nominal']; ?>">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group">
+                <label><strong>Nama Admin</strong> <small class="text-danger">*</small></label>
+                <select class="form-control" name="id_admin" required>
+                  <option value="">-- Pilih Admin --</option>
+                  <?php while ($row = mysqli_fetch_assoc($admin)):
+                    $selected = ($row['id_admin'] == $trans['id_admin']) ? 'selected' : '';
+                  ?>
+                    <option value="<?= intval($row['id_admin']); ?>" <?= $selected; ?>>
+                      <?= htmlspecialchars($row['nama_admin']); ?>
+                    </option>
+                  <?php endwhile; ?>
+                </select>
+              </div>
             </div>
 
-            <div class="form-group">
-              <label>Bukti Pembayaran</label><br>
-              <?php if(!empty($data['foto'])): ?>
-                <div id="previewFoto">
-                  <img src="views/transaksi/fototransaksi/<?= htmlspecialchars($data['foto']); ?>" width="120" height="120" class="mb-2" style="object-fit:cover;border-radius:8px;"><br>
-                </div>
-              <?php else: ?>
-                <span class="text-muted">(Belum ada)</span><br>
-              <?php endif; ?>
-              <input type="file" name="foto" class="form-control-file" accept="image/*">
-              <small class="text-muted">Kosongkan jika tidak ingin mengubah foto. Max 2MB, JPG/PNG.</small>
+            <div class="col-md-6">
+              <div class="form-group">
+                <label><strong>Nominal Bantuan</strong></label>
+                <input type="text" class="form-control" id="nominal" name="nominal" readonly
+                       value="<?= number_format($trans['nominal'], 0, ',', '.'); ?>"
+                       placeholder="Nominal otomatis dari bantuan">
+              </div>
             </div>
+          </div>
+
+          <!-- === UPLOAD FOTO === -->
+          <div class="form-group">
+            <label><strong>Upload Bukti Pembayaran</strong></label>
+            <input type="file" class="form-control" name="foto" id="foto" accept="image/*">
+            <small class="form-text text-muted">Format JPG/PNG, maksimal 2MB.</small>
+
+            <?php if (!empty($trans['foto']) && file_exists("views/transaksi/fototransaksi/" . $trans['foto'])): ?>
+              <div class="mt-2">
+                <label>Foto Saat Ini:</label><br>
+                <img src="views/transaksi/fototransaksi/<?= htmlspecialchars($trans['foto']); ?>" 
+                     alt="Bukti" style="max-width:150px;border:1px solid #ccc;padding:3px;border-radius:5px;">
+              </div>
+            <?php endif; ?>
           </div>
 
         </div>
-      </div>
 
-      <div class="card-footer text-right">
-        <a href="index.php?halaman=daftartransaksi" class="btn btn-secondary btn-sm"><i class="fa fa-arrow-left"></i> Kembali</a>
-        <button type="submit" name="action" value="edit" class="btn btn-info btn-sm"><i class="fa fa-save"></i> Update</button>
-      </div>
-    </form>
+        <div class="card-footer text-right">
+          <button type="submit" class="btn btn-success">Update</button>
+          <a href="index.php?halaman=daftartransaksi" class="btn btn-secondary">Kembali</a>
+        </div>
+      </form>
+    </div>
   </div>
-
 </section>
 
-<script>
-  // Preview foto baru sebelum upload
-  document.querySelector('input[name="foto"]').addEventListener('change', function(e){
-    const file = e.target.files[0];
-    if(!file) return;
-    const reader = new FileReader();
-    reader.onload = function(evt){
-      let prev = document.getElementById('previewFoto');
-      if(prev) prev.remove();
-      const img = document.createElement('img');
-      img.src = evt.target.result;
-      img.style.maxWidth='150px';
-      img.style.marginTop='10px';
-      img.id='previewFoto';
-      e.target.insertAdjacentElement('afterend', img);
-    };
-    reader.readAsDataURL(file);
-  });
+<!-- ====== CSS/JS ====== -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 
-  // Update nominal otomatis saat pilih bantuan
-  const selectBantuan = document.getElementById('id_bantuan');
-  const nominalField = document.getElementById('nominal');
-  const nominalHidden = document.getElementById('nominal_hidden');
-  selectBantuan.addEventListener('change', function(){
-    const selectedOption = selectBantuan.options[selectBantuan.selectedIndex];
-    const nominal = selectedOption.getAttribute('data-nominal') || 0;
-    nominalField.value = parseInt(nominal).toLocaleString('id-ID');
-    nominalHidden.value = nominal;
+<script>
+  $(document).ready(function () {
+    // Inisialisasi DataTables
+    $('#tablePenerima').DataTable({
+      lengthChange: true,
+      searching: true,
+      paging: true,
+      pageLength: 10
+    });
+
+    // Update nominal otomatis saat bantuan dipilih
+    const bantuanSelect = document.getElementById('id_bantuan');
+    const nominalInput = document.getElementById('nominal');
+
+    bantuanSelect.addEventListener('change', function () {
+      const selected = this.options[this.selectedIndex];
+      if (selected && selected.dataset.nominal) {
+        const nominal = parseFloat(selected.dataset.nominal);
+        nominalInput.value = nominal.toLocaleString('id-ID');
+      } else {
+        nominalInput.value = '';
+      }
+    });
+
+    // Preview foto baru
+    document.getElementById('foto').addEventListener('change', function (e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function (evt) {
+        const prev = document.querySelector('#previewFoto');
+        if (prev) prev.remove();
+        const img = document.createElement('img');
+        img.src = evt.target.result;
+        img.id = 'previewFoto';
+        img.style.maxWidth = '150px';
+        img.style.display = 'block';
+        img.style.marginTop = '10px';
+        e.target.insertAdjacentElement('afterend', img);
+      };
+      reader.readAsDataURL(file);
+    });
   });
 </script>

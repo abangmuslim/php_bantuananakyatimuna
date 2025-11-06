@@ -32,7 +32,7 @@ if (!$data) {
 $fotoBukti = !empty($data['foto']) ? "../../views/transaksi/fototransaksi/" . $data['foto'] : "";
 
 // Tempat & tanggal
-$lokasi = "Tempat, Tanggal: " . date('d-m-Y');
+$lokasi = "Karang Baru, " . date('d-m-Y');
 ?>
 
 <!DOCTYPE html>
@@ -90,6 +90,9 @@ $lokasi = "Tempat, Tanggal: " . date('d-m-Y');
         .print-button {
             text-align: center;
             margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
         }
 
         .print-button button {
@@ -106,6 +109,12 @@ $lokasi = "Tempat, Tanggal: " . date('d-m-Y');
         .tanda-tangan p {
             margin: 5px 0;
         }
+
+        @media print {
+            .print-button {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 
@@ -114,6 +123,7 @@ $lokasi = "Tempat, Tanggal: " . date('d-m-Y');
     <div class="struk">
         <div class="print-button">
             <button onclick="window.print();">Cetak Struk</button>
+            <button onclick="window.close();">Keluar</button>
         </div>
 
         <h2>Struk Transaksi Bantuan</h2>
@@ -157,7 +167,7 @@ $lokasi = "Tempat, Tanggal: " . date('d-m-Y');
         <?php endif; ?>
 
         <div class="tanda-tangan">
-            <p><?= $lokasi = "Karang Baru, " . date('d-m-Y'); ?></p>
+            <p><?= $lokasi; ?></p>
             <p>Penerima,</p>
             <br><br>
             <p><b><?= htmlspecialchars($data['nama_penerima']); ?></b></p>
