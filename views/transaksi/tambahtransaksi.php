@@ -30,7 +30,14 @@ $bantuan = mysqli_query($koneksi, "SELECT id_bantuan, nama_bantuan, nominal FROM
               <tbody>
                 <?php
                 $no = 1;
-                $q = mysqli_query($koneksi, "SELECT id_penerima, nama_penerima, kelas, pendapatan_orang_tua FROM penerima ORDER BY nama_penerima ASC LIMIT 500");
+                // 🔹 Hanya tampilkan penerima dengan pendapatan di bawah 1 juta
+                $q = mysqli_query($koneksi, "
+                  SELECT id_penerima, nama_penerima, kelas, pendapatan_orang_tua 
+                  FROM penerima 
+                  WHERE pendapatan_orang_tua < 1000000 
+                  ORDER BY nama_penerima ASC 
+                  LIMIT 500
+                ");
                 while ($row = mysqli_fetch_assoc($q)):
                 ?>
                 <tr>
